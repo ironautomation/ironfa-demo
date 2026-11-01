@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DemoHost</RootNamespace>
+    <AssemblyName>DemoHost</AssemblyName>
+    <Version>0.2.0</Version>
+    <Product>DemoHost (IronFA 입문 실습 호스트)</Product>
+    <Company>IronAutomation</Company>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- secs4net (MIT) : https://github.com/mkjeff/secs4net -->
+    <PackageReference Include="Secs4Net" Version="3.0.1" />
+    <PackageReference Include="Secs4Net.Sml" Version="3.0.1" />
+  </ItemGroup>
+
+</Project>

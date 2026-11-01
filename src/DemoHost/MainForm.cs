@@ -1,0 +1,473 @@
+using System.Text;
+using Microsoft.Extensions.Options;
+using Secs4Net;
+using Secs4Net.Sml;
+
+namespace DemoHost;
+
+/// <summary>
+/// DemoHost 메인 화면: 위쪽 연결 설정 · 가운데 시나리오 버튼 · 아래 메시지 로그.
+/// </summary>
+public sealed class MainForm : Form
+{
+    // ---- 화면 요소 ----------------------------------------------------------
+    private readonly TextBox _txtIp = new() { Text = "127.0.0.1", Width = 130 };
+    private readonly NumericUpDown _numPort = new() { Minimum = 1, Maximum = 65535, Value = 5000, Width = 80 };
+    private readonly NumericUpDown _numDeviceId = new() { Minimum = 0, Maximum = 32767, Value = 0, Width = 70 };
+    private readonly RadioButton _rbActive = new() { Text = "Active", Checked = true, AutoSize = true };
+    private readonly RadioButton _rbPassive = new() { Text = "Passive", AutoSize = true };
+    private readonly Button _btnConnect = new() { Text = "연결", Width = 90, Height = 32 };
+    private readonly Button _btnDisconnect = new() { Text = "끊기", Width = 90, Height = 32, Enabled = false };
+    private readonly Label _lblHsms = new() { AutoSize = true, Padding = new Padding(8, 6, 8, 6) };
+    private readonly Label _lblComm = new() { AutoSize = true, Padding = new Padding(8, 6, 8, 6) };
+
+    private readonly Button _btnS1F13 = ScenarioButton("S1F13  통신 확립");
+    private readonly Button _btnS1F1 = ScenarioButton("S1F1  Are You There");
+    private readonly Button _btnS1F15 = ScenarioButton("S1F15  오프라인 요청");
+    private readonly Button _btnS1F17 = ScenarioButton("S1F17  온라인 요청");
+    private readonly CheckBox _chkAutoReply = new() { Text = "장비 메시지 자동 응답", Checked = true, AutoSize = true };
+
+    private readonly RichTextBox _log = new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        BackColor = Color.White,
+        Font = new Font("Consolas", 11F),
+        WordWrap = false,
+        HideSelection = false,
+    };
+    private readonly CheckBox _chkSml = new() { Text = "메시지 본문(SML) 표시", Checked = true, AutoSize = true };
+    private readonly CheckBox _chkDetail = new() { Text = "상세 로그(HSMS 타이머 · Linktest)", AutoSize = true };
+    private readonly Button _btnClear = new() { Text = "로그 지우기", Width = 110, Height = 30 };
+    private readonly Button _btnSave = new() { Text = "로그 저장", Width = 110, Height = 30 };
+
+    // ---- 통신 ---------------------------------------------------------------
+    private HsmsConnection? _connection;
+    private SecsGem? _secsGem;
+    private CancellationTokenSource? _cts;
+    private readonly HostLogger _logger;
+
+    public MainForm()
+    {
+        Text = "DemoHost — IronFA 입문 실습 호스트 (ep02)";
+        Font = new Font("Malgun Gothic", 10F);
+        ClientSize = new Size(1180, 760);
+        StartPosition = FormStartPosition.CenterScreen;
+        _logger = new HostLogger(this);
+
+        BuildLayout();
+
+        _btnConnect.Click += async (_, _) => await ConnectAsync();
+        _btnDisconnect.Click += async (_, _) => await DisconnectAsync(logIt: true);
+        _btnS1F13.Click += async (_, _) => await SendAsync(Messages.S1F13);
+        _btnS1F1.Click += async (_, _) => await SendAsync(Messages.S1F1);
+        _btnS1F15.Click += async (_, _) => await SendAsync(Messages.S1F15);
+        _btnS1F17.Click += async (_, _) => await SendAsync(Messages.S1F17);
+        _btnClear.Click += (_, _) => _log.Clear();
+        _btnSave.Click += (_, _) => SaveLog();
+        _chkSml.CheckedChanged += (_, _) => _showSml = _chkSml.Checked;
+        _chkDetail.CheckedChanged += (_, _) => _showDetail = _chkDetail.Checked;
+        FormClosing += async (_, _) => await DisconnectAsync(logIt: false);
+
+        SetHsmsState(null);
+        SetCommunicating(false);
+        SetScenarioEnabled(false);
+        AppendLine("DemoHost 준비. 연결 설정을 확인하고 [연결]을 누르세요.", Color.Gray);
+    }
+
+    // ---- 레이아웃 -----------------------------------------------------------
+    private void BuildLayout()
+    {
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(8) };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        // 1) 연결(HSMS)
+        var conn = Flow();
+        conn.Controls.AddRange(new Control[]
+        {
+            Caption("IP"), _txtIp, Caption("Port"), _numPort, Caption("Device ID"), _numDeviceId,
+            Caption("Mode"), _rbActive, _rbPassive, _btnConnect, _btnDisconnect, _lblHsms,
+        });
+        root.Controls.Add(Group("연결 (HSMS)", conn), 0, 0);
+
+        // 2) 시나리오(EP02)
+        var scen = Flow();
+        scen.Controls.AddRange(new Control[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _chkAutoReply, _lblComm });
+        root.Controls.Add(Group("EP02 · 통신 확립과 온라인", scen), 0, 1);
+
+        // 3) 로그
+        var logBox = new GroupBox { Text = "메시지 로그   (H→E 호스트가 보냄 · E→H 장비가 보냄 · W 응답 필요)", Dock = DockStyle.Fill, Padding = new Padding(6) };
+        logBox.Controls.Add(_log);
+        root.Controls.Add(logBox, 0, 2);
+
+        // 4) 로그 도구
+        var tools = Flow();
+        tools.Controls.AddRange(new Control[] { _btnClear, _btnSave, _chkSml, _chkDetail });
+        root.Controls.Add(tools, 0, 3);
+
+        Controls.Add(root);
+    }
+
+    private static FlowLayoutPanel Flow() => new()
+    {
+        Dock = DockStyle.Fill,
+        AutoSize = true,
+        WrapContents = true,
+        FlowDirection = FlowDirection.LeftToRight,
+    };
+
+    private static GroupBox Group(string text, Control content)
+    {
+        var g = new GroupBox { Text = text, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(6) };
+        g.Controls.Add(content);
+        return g;
+    }
+
+    private static Label Caption(string text) => new() { Text = text, AutoSize = true, Padding = new Padding(6, 7, 0, 0) };
+
+    private static Button ScenarioButton(string text) => new() { Text = text, AutoSize = true, Height = 34, Padding = new Padding(6, 0, 6, 0) };
+
+    // ---- 연결 · 끊기 --------------------------------------------------------
+    private async Task ConnectAsync()
+    {
+        await DisconnectAsync(logIt: false);
+
+        var options = Options.Create(new SecsGemOptions
+        {
+            IsActive = _rbActive.Checked,
+            IpAddress = _txtIp.Text.Trim(),
+            Port = (int)_numPort.Value,
+            DeviceId = (ushort)_numDeviceId.Value,
+        });
+
+        var cts = new CancellationTokenSource();
+        var connection = new HsmsConnection(options, _logger);
+        var secsGem = new SecsGem(options, connection, _logger);
+        connection.ConnectionChanged += (_, state) => Ui(() => OnConnectionChanged(state));
+
+        _cts = cts;
+        _connection = connection;
+        _secsGem = secsGem;
+        SetEditable(false);
+
+        var mode = options.Value.IsActive ? "Active(접속하러 감)" : "Passive(접속을 기다림)";
+        AppendLine($"{Now()}  ---  {mode} · {options.Value.IpAddress}:{options.Value.Port} · Device ID {options.Value.DeviceId}", Color.Gray);
+
+        connection.Start(cts.Token);
+
+        try
+        {
+            await foreach (var wrapper in secsGem.GetPrimaryMessageAsync(cts.Token))
+            {
+                await HandlePrimaryAsync(wrapper, cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 끊기
+        }
+    }
+
+    private async Task DisconnectAsync(bool logIt)
+    {
+        var cts = _cts;
+        var connection = _connection;
+        var secsGem = _secsGem;
+        _cts = null;
+        _connection = null;
+        _secsGem = null;
+        if (cts is null)
+        {
+            return;
+        }
+
+        cts.Cancel();
+        if (connection is not null)
+        {
+            await connection.DisposeAsync();
+        }
+        secsGem?.Dispose();
+        cts.Dispose();
+
+        if (!IsDisposed)
+        {
+            SetHsmsState(null);
+            SetCommunicating(false);
+            SetScenarioEnabled(false);
+            SetEditable(true);
+            if (logIt)
+            {
+                AppendLine($"{Now()}  ---  연결을 끊었습니다", Color.Gray);
+            }
+        }
+    }
+
+    private void OnConnectionChanged(ConnectionState state)
+    {
+        SetHsmsState(state);
+        SetScenarioEnabled(state == ConnectionState.Selected);
+        if (state != ConnectionState.Selected)
+        {
+            SetCommunicating(false);
+        }
+        AppendLine($"{Now()}  ---  HSMS {state}{StateHint(state)}", Color.Gray);
+    }
+
+    private static string StateHint(ConnectionState state) => state switch
+    {
+        ConnectionState.Connecting => "  (TCP 접속 시도 중)",
+        ConnectionState.Connected => "  (TCP 연결됨 · Select 대기)",
+        ConnectionState.Selected => "  (HSMS 연결 완료 · 이제 SECS 메시지를 주고받을 수 있음)",
+        ConnectionState.Retry => "  (연결 실패 · 다시 시도)",
+        _ => string.Empty,
+    };
+
+    // ---- 보내기 · 받기 ------------------------------------------------------
+    private async Task SendAsync(Func<SecsMessage> create)
+    {
+        var secsGem = _secsGem;
+        var cts = _cts;
+        if (secsGem is null || cts is null || _connection?.State != ConnectionState.Selected)
+        {
+            AppendLine("HSMS가 Selected 상태가 아닙니다. 먼저 [연결]하세요.", Color.DarkOrange);
+            return;
+        }
+
+        using var message = create();
+        try
+        {
+            using var reply = await secsGem.SendAsync(message, cts.Token);
+            if (reply.S == 1 && reply.F == 14 && reply.SecsItem?[0].FirstValueOrDefault<byte>(255) == 0)
+            {
+                SetCommunicating(true);
+            }
+        }
+        catch (SecsException ex)
+        {
+            AppendLine($"           ✗ 응답 오류: {ex.Message}", Color.Red);
+        }
+        catch (OperationCanceledException)
+        {
+            // 끊기
+        }
+    }
+
+    private async Task HandlePrimaryAsync(PrimaryMessageWrapper wrapper, CancellationToken cancellation)
+    {
+        var primary = wrapper.PrimaryMessage;
+        try
+        {
+            if (!primary.ReplyExpected)
+            {
+                return;
+            }
+            if (!_chkAutoReply.Checked)
+            {
+                AppendLine($"           자동 응답 꺼짐 — S{primary.S}F{primary.F}에 응답하지 않습니다", Color.DarkOrange);
+                return;
+            }
+
+            using var reply = Messages.AutoReply(primary);
+            await wrapper.TryReplyAsync(reply, cancellation);
+            if (primary.S == 1 && primary.F == 13)
+            {
+                SetCommunicating(true);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 끊기
+        }
+        catch (SecsException ex)
+        {
+            AppendLine($"           ✗ 응답 실패: {ex.Message}", Color.Red);
+        }
+        finally
+        {
+            primary.Dispose();
+        }
+    }
+
+    // ---- 상태 표시 ----------------------------------------------------------
+    private void SetHsmsState(ConnectionState? state)
+    {
+        (_lblHsms.Text, _lblHsms.BackColor) = state switch
+        {
+            null => ("HSMS: 끊김", Color.Gainsboro),
+            ConnectionState.Connecting => ("HSMS: Connecting", Color.Khaki),
+            ConnectionState.Connected => ("HSMS: Connected", Color.Khaki),
+            ConnectionState.Selected => ("HSMS: Selected", Color.PaleGreen),
+            ConnectionState.Retry => ("HSMS: Retry", Color.LightSalmon),
+            _ => ($"HSMS: {state}", Color.Gainsboro),
+        };
+    }
+
+    private void SetCommunicating(bool on)
+    {
+        _lblComm.Text = on ? "GEM 통신: COMMUNICATING" : "GEM 통신: NOT COMMUNICATING";
+        _lblComm.BackColor = on ? Color.PaleGreen : Color.Gainsboro;
+    }
+
+    private void SetScenarioEnabled(bool on)
+    {
+        foreach (var b in new[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17 })
+        {
+            b.Enabled = on;
+        }
+    }
+
+    private void SetEditable(bool on)
+    {
+        _txtIp.Enabled = _numPort.Enabled = _numDeviceId.Enabled = _rbActive.Enabled = _rbPassive.Enabled = on;
+        _btnConnect.Enabled = on;
+        _btnDisconnect.Enabled = !on;
+    }
+
+    // ---- 로그 ---------------------------------------------------------------
+    internal static string Now() => DateTime.Now.ToString("HH:mm:ss.fff");
+
+    // secs4net 스레드에서 읽으므로 체크 상태를 필드로 들고 있습니다.
+    private volatile bool _showSml = true;
+    private volatile bool _showDetail;
+
+    internal bool ShowSml => _showSml;
+
+    internal bool ShowDetail => _showDetail;
+
+    internal void Ui(Action action)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+        if (InvokeRequired)
+        {
+            BeginInvoke(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
+    internal void AppendLine(string text, Color color, bool bold = false)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+        _log.SelectionStart = _log.TextLength;
+        _log.SelectionLength = 0;
+        _log.SelectionColor = color;
+        _log.SelectionFont = bold ? new Font(_log.Font, FontStyle.Bold) : _log.Font;
+        _log.SelectedText = text + Environment.NewLine;
+        _log.ScrollToCaret();
+    }
+
+    private void SaveLog()
+    {
+        using var dialog = new SaveFileDialog
+        {
+            Filter = "텍스트 (*.txt)|*.txt",
+            FileName = $"demohost-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            File.WriteAllText(dialog.FileName, _log.Text, Encoding.UTF8);
+        }
+    }
+
+    /// <summary>secs4net 로그를 화면 로그로 옮깁니다. secs4net은 다른 스레드에서 부르므로
+    /// 문자열을 이 자리에서 만들고(메시지는 곧 해제될 수 있음) 화면 갱신만 UI 스레드로 넘깁니다.</summary>
+    private sealed class HostLogger : ISecsGemLogger
+    {
+        private static readonly Color Sent = Color.FromArgb(0, 70, 170);
+        private static readonly Color Received = Color.FromArgb(0, 120, 60);
+        private static readonly Color Note = Color.FromArgb(120, 60, 160);
+        private readonly MainForm _form;
+
+        public HostLogger(MainForm form) => _form = form;
+
+        public void MessageOut(SecsMessage msg, int id) => Write(msg, "H→E", Sent);
+
+        public void MessageIn(SecsMessage msg, int id) => Write(msg, "E→H", Received);
+
+        private void Write(SecsMessage msg, string direction, Color color)
+        {
+            var head = $"{Now()}  {direction}  S{msg.S}F{msg.F}{(msg.ReplyExpected ? " W" : "  ")}  {Messages.NameOf(msg.S, msg.F)}";
+            var body = _form.ShowSml ? Sml(msg) : null;
+            var note = Messages.Explain(msg);
+            _form.Ui(() =>
+            {
+                _form.AppendLine(head, color, bold: true);
+                if (!string.IsNullOrEmpty(body))
+                {
+                    _form.AppendLine(body, color);
+                }
+                if (note is not null)
+                {
+                    _form.AppendLine($"           → {note}", Note);
+                }
+            });
+        }
+
+        private static string? Sml(SecsMessage msg)
+        {
+            if (msg.SecsItem is null)
+            {
+                return null;
+            }
+            using var sw = new StringWriter();
+            SmlWriter.Write(sw, msg.SecsItem, 11);
+            return sw.ToString().TrimEnd();
+        }
+
+        public void Info(string msg)
+        {
+            // HSMS 제어 메시지(Select 등)는 항상, 나머지(타이머)는 상세 로그일 때만
+            const string sent = "Sent Control Message: ";
+            const string recv = "Receive Control message: ";
+            if (msg.StartsWith(sent, StringComparison.Ordinal) || msg.StartsWith(recv, StringComparison.Ordinal))
+            {
+                var outgoing = msg.StartsWith(sent, StringComparison.Ordinal);
+                var type = msg[(outgoing ? sent.Length : recv.Length)..];
+                if (type.StartsWith("LinkTest", StringComparison.Ordinal) && !_form.ShowDetail)
+                {
+                    return;
+                }
+                var line = $"{Now()}  {(outgoing ? "H→E" : "E→H")}  [HSMS] {type}";
+                _form.Ui(() => _form.AppendLine(line, Color.DimGray));
+                return;
+            }
+            if (_form.ShowDetail)
+            {
+                var line = $"{Now()}  ...  {msg}";
+                _form.Ui(() => _form.AppendLine(line, Color.Silver));
+            }
+        }
+
+        public void Debug(string msg)
+        {
+            if (_form.ShowDetail)
+            {
+                var line = $"{Now()}  ...  {msg}";
+                _form.Ui(() => _form.AppendLine(line, Color.Silver));
+            }
+        }
+
+        public void Warning(string msg)
+        {
+            var line = $"{Now()}  !    {msg}";
+            _form.Ui(() => _form.AppendLine(line, Color.DarkOrange));
+        }
+
+        public void Error(string msg, SecsMessage? message, Exception? ex)
+        {
+            var line = $"{Now()}  ✗    {msg}{(ex is null ? string.Empty : " — " + ex.Message)}";
+            _form.Ui(() => _form.AppendLine(line, Color.Red));
+        }
+    }
+}

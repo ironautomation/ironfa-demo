@@ -14,6 +14,7 @@
 
 - Windows 10/11 64비트
 - **IronTools v2** (IronFA 포함 설치) — 90일 트라이얼: https://trial.ironautomation.com
+- DemoHost — EP02부터. Releases의 `DemoHost-ep02-win-x64.zip`(설치 불필요) 또는 .NET 8 SDK로 직접 빌드 (`src/DemoHost/README.md`)
 - Visual Studio 2022 — EP05(장비 프로그램 코드)부터 필요
 
 ## 받는 방법
@@ -31,7 +32,7 @@ git이 없으면 **Code › Download ZIP**으로 받아 `C:\Demo`에 풀고, 폴
 | 회차 | 제목 | 태그 |
 |---|---|---|
 | EP01 | SECS/GEM과 IronFA — 장비와 호스트가 대화하는 법 | `ep01` |
-| EP02 | 호스트와 첫 연결 — 통신 확립과 온라인 | 예정 |
+| EP02 | 호스트와 첫 연결 — 통신 확립과 온라인 | `ep02` |
 | EP03 | 상태 변수와 장비 상수 — SV · ECV | 예정 |
 | EP04 | 이벤트 · 리포트 · 알람 — 장비가 먼저 말한다 | 예정 |
 | EP05 | 장비 프로그램 속으로 — IronGEM.Connector (C#) | 예정 |
