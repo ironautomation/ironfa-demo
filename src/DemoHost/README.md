@@ -5,7 +5,7 @@ IronGEM에 HSMS로 접속해 SECS 메시지를 주고받고, 오간 메시지를
 
 ## 실행
 
-**바로 실행(권장)** — 레포 **Releases**의 `DemoHost-ep02-win-x64.zip`을 받아 `C:\Demo\DemoHost`에 풀고 `DemoHost.exe`를 실행합니다. (.NET 설치 불필요)
+**바로 실행(권장)** — 레포 **Releases**의 `DemoHost-ep03-win-x64.zip`을 받아 `C:\Demo\ironfa-demo`에 풀고 `DemoHost.exe`를 실행합니다. (.NET 설치 불필요)
 
 **직접 빌드** — .NET 8 SDK 또는 Visual Studio 2022(17.8 이상, .NET 데스크톱 개발)
 
@@ -20,6 +20,7 @@ dotnet run --project src\DemoHost
 |---|---|
 | 연결 (HSMS) | IP · Port · Device ID · Mode(Active/Passive) · [연결] [끊기] · HSMS 상태(Connecting → Selected) |
 | EP02 · 통신 확립과 온라인 | S1F13 통신 확립 · S1F1 Are You There · S1F15 오프라인 요청 · S1F17 온라인 요청 · 장비 메시지 자동 응답 · GEM 통신 상태 |
+| EP03 · SV · ECV | SVID 칸 + S1F11 SV 목록 · S1F3 SV 값 / ECID 칸 + S2F29 ECV 목록 · S2F13 ECV 값 / 값 · 형식 + S2F15 ECV 변경. ID 칸을 비우면 전부(빈 리스트) · ID 형식은 장비 응답(S1F12 · S2F30)에서 자동으로 맞춤 |
 | 메시지 로그 | 시각 · 방향(H→E 호스트가 보냄 / E→H 장비가 보냄) · SxFy · W(응답 필요) · 이름 · SML 본문 · 응답 코드 설명(→) |
 
 기본값은 IronGEM 기본 설정과 짝입니다: **127.0.0.1 : 5000 · Device ID 0 · Active**(IronGEM이 Passive).

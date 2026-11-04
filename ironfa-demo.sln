@@ -4,6 +4,8 @@ VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoHost", "src\DemoHost\DemoHost.csproj", "{3B6E2C51-7A1D-4E0B-9C2F-5D8A1E4B7C20}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoEtcher", "src\DemoEtcher\DemoEtcher.csproj", "{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{3B6E2C51-7A1D-4E0B-9C2F-5D8A1E4B7C20}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3B6E2C51-7A1D-4E0B-9C2F-5D8A1E4B7C20}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B6E2C51-7A1D-4E0B-9C2F-5D8A1E4B7C20}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -27,6 +27,18 @@ public sealed class MainForm : Form
     private readonly Button _btnS1F17 = ScenarioButton("S1F17  온라인 요청");
     private readonly CheckBox _chkAutoReply = new() { Text = "장비 메시지 자동 응답", Checked = true, AutoSize = true };
 
+    // EP03 · SV · ECV
+    private readonly TextBox _txtSvids = new() { Width = 170, PlaceholderText = "비우면 전부" };
+    private readonly Button _btnS1F11 = ScenarioButton("S1F11  SV 목록");
+    private readonly Button _btnS1F3 = ScenarioButton("S1F3  SV 값");
+    private readonly TextBox _txtEcids = new() { Width = 120, PlaceholderText = "비우면 전부" };
+    private readonly Button _btnS2F29 = ScenarioButton("S2F29  ECV 목록");
+    private readonly Button _btnS2F13 = ScenarioButton("S2F13  ECV 값");
+    private readonly TextBox _txtEcv = new() { Width = 80, Text = "150" };
+    private readonly ComboBox _cmbEcvFormat = new() { Width = 85, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Button _btnS2F15 = ScenarioButton("S2F15  ECV 변경");
+    private readonly Label _lblIdFormat = new() { AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(6, 9, 0, 0) };
+
     private readonly RichTextBox _log = new()
     {
         Dock = DockStyle.Fill,
@@ -49,9 +61,9 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "DemoHost — IronFA 입문 실습 호스트 (ep02)";
+        Text = "DemoHost — IronFA 입문 실습 호스트 (ep03)";
         Font = new Font("Malgun Gothic", 10F);
-        ClientSize = new Size(1180, 760);
+        ClientSize = new Size(1180, 820);
         StartPosition = FormStartPosition.CenterScreen;
         _logger = new HostLogger(this);
 
@@ -63,6 +75,16 @@ public sealed class MainForm : Form
         _btnS1F1.Click += async (_, _) => await SendAsync(Messages.S1F1);
         _btnS1F15.Click += async (_, _) => await SendAsync(Messages.S1F15);
         _btnS1F17.Click += async (_, _) => await SendAsync(Messages.S1F17);
+        _btnS1F11.Click += async (_, _) => await SendAsync(() => Messages.S1F11(Messages.ParseIds(_txtSvids.Text)));
+        _btnS1F3.Click += async (_, _) => await SendAsync(() => Messages.S1F3(Messages.ParseIds(_txtSvids.Text)));
+        _btnS2F29.Click += async (_, _) => await SendAsync(() => Messages.S2F29(Messages.ParseIds(_txtEcids.Text)));
+        _btnS2F13.Click += async (_, _) => await SendAsync(() => Messages.S2F13(Messages.ParseIds(_txtEcids.Text)));
+        _btnS2F15.Click += async (_, _) => await SendEcvChangeAsync();
+        _txtEcids.TextChanged += (_, _) => SyncEcvFormat();
+        _cmbEcvFormat.Items.AddRange(Messages.ValueFormats);
+        _cmbEcvFormat.SelectedItem = "F4";
+        Messages.FormatsLearned += () => Ui(() => { SyncEcvFormat(); ShowIdFormat(); });
+        ShowIdFormat();
         _btnClear.Click += (_, _) => _log.Clear();
         _btnSave.Click += (_, _) => SaveLog();
         _chkSml.CheckedChanged += (_, _) => _showSml = _chkSml.Checked;
@@ -78,7 +100,8 @@ public sealed class MainForm : Form
     // ---- 레이아웃 -----------------------------------------------------------
     private void BuildLayout()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(8) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(8) };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -98,15 +121,25 @@ public sealed class MainForm : Form
         scen.Controls.AddRange(new Control[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _chkAutoReply, _lblComm });
         root.Controls.Add(Group("EP02 · 통신 확립과 온라인", scen), 0, 1);
 
+        // 2-1) 시나리오(EP03)
+        var sv = Flow();
+        sv.Controls.AddRange(new Control[]
+        {
+            Caption("SVID"), _txtSvids, _btnS1F11, _btnS1F3,
+            Caption("   ECID"), _txtEcids, _btnS2F29, _btnS2F13,
+            Caption("값"), _txtEcv, _cmbEcvFormat, _btnS2F15, _lblIdFormat,
+        });
+        root.Controls.Add(Group("EP03 · SV · ECV   (ID 여러 개는 띄어 쓰기 · 비우면 전부)", sv), 0, 2);
+
         // 3) 로그
         var logBox = new GroupBox { Text = "메시지 로그   (H→E 호스트가 보냄 · E→H 장비가 보냄 · W 응답 필요)", Dock = DockStyle.Fill, Padding = new Padding(6) };
         logBox.Controls.Add(_log);
-        root.Controls.Add(logBox, 0, 2);
+        root.Controls.Add(logBox, 0, 3);
 
         // 4) 로그 도구
         var tools = Flow();
         tools.Controls.AddRange(new Control[] { _btnClear, _btnSave, _chkSml, _chkDetail });
-        root.Controls.Add(tools, 0, 3);
+        root.Controls.Add(tools, 0, 4);
 
         Controls.Add(root);
     }
@@ -255,6 +288,44 @@ public sealed class MainForm : Form
         }
     }
 
+    private async Task SendEcvChangeAsync()
+    {
+        var ids = Messages.ParseIds(_txtEcids.Text);
+        if (ids.Count != 1)
+        {
+            AppendLine("S2F15는 ECID 칸에 하나만 적어 주세요(예: 2001).", Color.DarkOrange);
+            return;
+        }
+        var format = _cmbEcvFormat.SelectedItem as string ?? "F4";
+        Secs4Net.Item value;
+        try
+        {
+            value = Messages.Value(format, _txtEcv.Text);
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            AppendLine($"값 '{_txtEcv.Text}'을 {format} 형식으로 바꿀 수 없습니다.", Color.DarkOrange);
+            return;
+        }
+        await SendAsync(() => Messages.S2F15(ids[0], value));
+    }
+
+    /// <summary>ECID 칸이 하나이고 장비가 알려 준 형식이 있으면 값 형식을 그에 맞춥니다.</summary>
+    private void SyncEcvFormat()
+    {
+        var ids = Messages.ParseIds(_txtEcids.Text);
+        if (ids.Count == 1 && Messages.EcvFormats.TryGetValue(ids[0], out var f))
+        {
+            var key = f == "ASCII" ? "A" : f;
+            if (_cmbEcvFormat.Items.Contains(key))
+            {
+                _cmbEcvFormat.SelectedItem = key;
+            }
+        }
+    }
+
+    private void ShowIdFormat() => _lblIdFormat.Text = $"ID 형식 {Messages.IdFormat}";
+
     private async Task HandlePrimaryAsync(PrimaryMessageWrapper wrapper, CancellationToken cancellation)
     {
         var primary = wrapper.PrimaryMessage;
@@ -313,7 +384,7 @@ public sealed class MainForm : Form
 
     private void SetScenarioEnabled(bool on)
     {
-        foreach (var b in new[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17 })
+        foreach (var b in new[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _btnS1F11, _btnS1F3, _btnS2F29, _btnS2F13, _btnS2F15 })
         {
             b.Enabled = on;
         }
