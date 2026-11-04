@@ -13,7 +13,7 @@
 ## 준비물
 
 - Windows 10/11 64비트
-- **IronTools v2** (IronFA 포함 설치) — 90일 트라이얼: https://trial.ironautomation.com
+- **IronTools v2** (IronFA 포함 설치) — [무료 Trial 신청](#irontools-v2-무료-trial-신청)
 - DemoHost — EP02부터. Releases의 최신 `DemoHost-epNN-win-x64.zip`(EP03부터 `ep03`)(설치 불필요) 또는 .NET 8 SDK로 직접 빌드 (`src/DemoHost/README.md`)
 - Visual Studio 2022 — EP05(장비 프로그램 코드)부터 필요
 
@@ -44,8 +44,12 @@ git이 없으면 **Code › Download ZIP**으로 받아 `C:\Demo`에 풀고, 폴
 
 - 이 레포: MIT License — `LICENSE` 참고
 - DemoHost는 [secs4net](https://github.com/mkjeff/secs4net)(MIT License)을 사용합니다.
-- IronTools v2 · IronFA · IronGEM은 (주)아이언오토메이션의 상용 제품이며 이 레포에 포함되지 않습니다.
 - SEMI 표준(E5 · E30 · E37 · E40 · E87 · E94) 문서는 SEMI에서 구입할 수 있습니다.
+- IronTools v2 · IronFA · IronGEM은 (주)아이언오토메이션의 상용 제품이며 이 레포에 포함되지 않습니다. 다만 아래 **90일 무료 트라이얼**로 받아 쓰실 수 있습니다.
+
+## IronTools v2 무료 Trial 신청
+
+**IronTools 90일 무료 트라이얼**로 IronFA를 직접 써 보실 수 있습니다 — **[▶ 무료 Trial 및 상담 신청하기](http://trial.ironautomation.com/trial/)**
 
 ---
 제작: (주)아이언오토메이션 · 질문은 Issues에 남겨 주세요.
