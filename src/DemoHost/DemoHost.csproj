@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DemoHost</RootNamespace>
     <AssemblyName>DemoHost</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Product>DemoHost (IronFA 입문 실습 호스트)</Product>
     <Company>IronAutomation</Company>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>

@@ -8,7 +8,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>DemoEtcher</RootNamespace>
     <AssemblyName>DemoEtcher</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Product>DemoEtcher (IronFA 입문 실습 장비)</Product>
     <Company>IronAutomation</Company>
   </PropertyGroup>

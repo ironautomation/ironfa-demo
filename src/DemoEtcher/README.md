@@ -2,7 +2,7 @@
 
 가상 매엽식 식각 장비입니다. (C# WinForms · .NET Framework 4.8 · IronGEM.Connector)
 
-- EP03부터 실행만 하고, **EP05에서 코드를 엽니다.**
+- EP03 · EP04는 실행만 하고, **EP05에서 코드를 엽니다.**
 - EP06 · EP07에서 로드포트(E87)와 Process Job · Control Job(E40 · E94) 처리가 추가됩니다.
 
 ## 실행 (EP03)
@@ -19,6 +19,18 @@ IronGEM(127.0.0.1:5001)이 먼저 떠 있어야 합니다. IronStudio에 EP03 �
 - 0.5초마다 SV 1001~1003을 IronGEM에 올립니다(`SetVariableAsync`).
 - 호스트가 S2F15로 ECV 2001을 바꾸면 IronGEM이 범위(20 ~ 200)를 먼저 검사하고, 통과하면 DemoEtcher에 묻습니다(`GEMReqChangeECV`). DemoEtcher가 0을 돌려주면 설정 온도가 바뀝니다.
 - Connector에는 ECV 현재 값을 읽는 API가 없어 시작할 때 설정 온도는 60(ECV 기본값)입니다.
+
+## EP04 — 공정 · 이벤트 · 알람
+
+Releases `ep04`의 `DemoEtcher-ep04.zip`으로 바꿉니다. IronStudio에 EP04 설정(DVVAL 1101 · CEID 3001 · 3002 · ALID 5001, `docs/ep04.md`)이 있어야 합니다.
+
+| 운전 | 동작 |
+|---|---|
+| 공정 실행 (10초) | ProcessState 1 → **CEID 3001 ProcessStarted** → 10초 → ProcessState 0 · DVVAL 1101 ProcessTime → **CEID 3002 ProcessCompleted** |
+| 과온 시뮬레이션 | 히터 이상: 온도가 설정 온도 + 40℃까지 오름. 설정 온도 + 15℃를 넘으면 **알람 5001 발생**(SetAlarm), + 5℃ 아래로 내려오면 **해제**(ClearAlarm) |
+
+- 이벤트에 실릴 값(SV · DVVAL)을 먼저 올리고(`SetVariableAsync`) 이벤트를 알립니다(`SetEventAsync`). IronGEM은 그 순간 자기가 가진 값으로 S6F11을 만듭니다.
+- 장비는 이벤트 · 알람을 **늘** 알립니다. 호스트에 보낼지는 IronGEM이 정합니다 — 호스트가 S2F37로 끈 이벤트, S5F3으로 끈 알람은 보내지 않습니다(이때도 반환값은 0).
 
 ## 직접 빌드
 

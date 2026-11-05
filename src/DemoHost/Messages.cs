@@ -36,8 +36,16 @@ internal static class Messages
         [(2, 18)] = "Date and Time Data",
         [(2, 29)] = "Equipment Constant Namelist Request",
         [(2, 30)] = "Equipment Constant Namelist",
+        [(2, 33)] = "Define Report",
+        [(2, 34)] = "Define Report Acknowledge",
+        [(2, 35)] = "Link Event Report",
+        [(2, 36)] = "Link Event Report Acknowledge",
+        [(2, 37)] = "Enable/Disable Event Report",
+        [(2, 38)] = "Enable/Disable Event Report Acknowledge",
         [(5, 1)] = "Alarm Report Send",
         [(5, 2)] = "Alarm Report Acknowledge",
+        [(5, 3)] = "Enable/Disable Alarm Send",
+        [(5, 4)] = "Enable/Disable Alarm Acknowledge",
         [(6, 11)] = "Event Report Send",
         [(6, 12)] = "Event Report Acknowledge",
         [(9, 1)] = "Unrecognized Device ID",
@@ -104,6 +112,98 @@ internal static class Messages
         RequestedEcids = new[] { ecid };
         return new(2, 15) { Name = NameOf(2, 15), SecsItem = L(L(Id(ecid), value)) };
     }
+
+    // ---- 호스트 → 장비 (EP04 · 이벤트 · 리포트 · 알람) ----------------------
+    // 형식은 IronGEM 기본 Data Item Dictionary와 같아야 합니다(다르면 S9F7):
+    //   DATAID · RPTID · VID · ALID = U2 / CEID = U4 / CEED = BOOLEAN / ALED = B
+
+    /// <summary>이 실습 호스트가 정의하는 리포트(RPTID → VID 목록).</summary>
+    public static readonly (ushort Rptid, ushort[] Vids)[] Ep04Reports =
+    {
+        (4001, new ushort[] { 1001, 1002, 1003 }),  // 챔버 상태: 온도 · 압력 · 공정 상태
+        (4002, new ushort[] { 1101 }),              // 공정 결과: 공정 시간(DVVAL)
+    };
+
+    /// <summary>이벤트 ↔ 리포트 링크(CEID → RPTID 목록). 리포트 하나를 여러 이벤트에 걸 수 있습니다.</summary>
+    public static readonly (uint Ceid, ushort[] Rptids)[] Ep04Links =
+    {
+        (3001, new ushort[] { 4001 }),        // ProcessStarted
+        (3002, new ushort[] { 4001, 4002 }),  // ProcessCompleted
+    };
+
+    /// <summary>화면에 보여 줄 한 줄 요약.</summary>
+    public static string Ep04Summary =>
+        "리포트 " + string.Join(" · ", Ep04Reports.Select(r => $"{r.Rptid} = {string.Join(" ", r.Vids)}")) +
+        "      링크 " + string.Join(" · ", Ep04Links.Select(l => $"{l.Ceid} → {string.Join(" ", l.Rptids)}"));
+
+    private static int _dataId;
+
+    private static Item DataId() => U2((ushort)Interlocked.Increment(ref _dataId));
+
+    /// <summary>S2F33 W — 리포트 전부 삭제: &lt;L DATAID &lt;L [0]&gt;&gt;. IronGEM은 링크도 함께 지웁니다.</summary>
+    public static SecsMessage S2F33DeleteAll() => new(2, 33) { Name = NameOf(2, 33), SecsItem = L(DataId(), L()) };
+
+    /// <summary>S2F33 W — 리포트 정의: &lt;L DATAID &lt;L &lt;L RPTID &lt;L VID…&gt;&gt;…&gt;&gt;.</summary>
+    public static SecsMessage S2F33Define()
+    {
+        foreach (var r in Ep04Reports)
+        {
+            DefinedReports[r.Rptid] = r.Vids;
+        }
+        return new(2, 33)
+        {
+            Name = NameOf(2, 33),
+            SecsItem = L(DataId(), L(Ep04Reports.Select(r => L(U2(r.Rptid), L(r.Vids.Select(v => U2(v)).ToArray()))).ToArray())),
+        };
+    }
+
+    /// <summary>S2F35 W — 이벤트 링크: &lt;L DATAID &lt;L &lt;L CEID &lt;L RPTID…&gt;&gt;…&gt;&gt;.</summary>
+    public static SecsMessage S2F35Link() => new(2, 35)
+    {
+        Name = NameOf(2, 35),
+        SecsItem = L(DataId(), L(Ep04Links.Select(l => L(U4(l.Ceid), L(l.Rptids.Select(r => U2(r)).ToArray()))).ToArray())),
+    };
+
+    /// <summary>S2F37 W — 이벤트 켜기 · 끄기: &lt;L CEED &lt;L CEID…&gt;&gt;. CEID 목록이 비면 전부.</summary>
+    public static SecsMessage S2F37(bool enable, IReadOnlyList<string> ceids) => new(2, 37)
+    {
+        Name = NameOf(2, 37),
+        SecsItem = L(Item.Boolean(enable), L(ceids.Select(c => U4(uint.Parse(c, CultureInfo.InvariantCulture))).ToArray())),
+    };
+
+    /// <summary>S5F3 W — 알람 켜기 · 끄기: &lt;L ALED ALID&gt;. ALED 128(비트 8) = 켜기, 0 = 끄기.</summary>
+    public static SecsMessage S5F3(bool enable, string alid) => new(5, 3)
+    {
+        Name = NameOf(5, 3),
+        SecsItem = L(B((byte)(enable ? 0x80 : 0x00)), string.IsNullOrWhiteSpace(alid) ? U2(Array.Empty<ushort>()) : U2(ushort.Parse(alid.Trim(), CultureInfo.InvariantCulture))),
+    };
+
+    /// <summary>호스트가 정의한 리포트(S6F11 값에 이름을 붙이는 데 씀).</summary>
+    public static readonly ConcurrentDictionary<int, ushort[]> DefinedReports = new();
+
+    /// <summary>호스트가 알고 있는 이름. S1F12를 받으면 SvNames가 우선합니다.</summary>
+    private static readonly Dictionary<string, string> KnownVidNames = new()
+    {
+        ["1001"] = "ChamberTemp",
+        ["1002"] = "ChamberPressure",
+        ["1003"] = "ProcessState",
+        ["1101"] = "ProcessTime",
+    };
+
+    private static readonly Dictionary<long, string> CeidNames = new()
+    {
+        [100] = "Offline",
+        [101] = "OnlineLocal",
+        [102] = "OnlineRemote",
+        [103] = "ECVChanged",
+        [3001] = "ProcessStarted",
+        [3002] = "ProcessCompleted",
+    };
+
+    private static readonly string[] AlarmCategories =
+    {
+        "분류 없음", "사람 안전", "장비 안전", "파라미터 경고", "파라미터 오류", "복구 불가 오류", "장비 상태 경고", "주의", "데이터 무결성",
+    };
 
     // ---- ID · 값 형식 ------------------------------------------------------
 
@@ -227,6 +327,52 @@ internal static class Messages
                 }
                 case (2, 30):
                     return ExplainNamelist(m.SecsItem, EcNames, isEcv: true);
+                case (2, 34):
+                {
+                    var ack = m.SecsItem?.FirstValueOrDefault<byte>(255);
+                    return ack switch
+                    {
+                        0 => "DRACK 0 = 리포트 정의 수락",
+                        1 => "DRACK 1 = 거부 — 공간 부족",
+                        2 => "DRACK 2 = 거부 — 형식 오류",
+                        3 => "DRACK 3 = 거부 — 이미 정의된 RPTID(먼저 지우세요)",
+                        4 => "DRACK 4 = 거부 — 장비에 없는 VID",
+                        _ => $"DRACK {ack}",
+                    };
+                }
+                case (2, 36):
+                {
+                    var ack = m.SecsItem?.FirstValueOrDefault<byte>(255);
+                    return ack switch
+                    {
+                        0 => "LRACK 0 = 이벤트 링크 수락",
+                        1 => "LRACK 1 = 거부 — 공간 부족",
+                        2 => "LRACK 2 = 거부 — 형식 오류",
+                        3 => "LRACK 3 = 거부 — 이미 링크된 CEID(먼저 링크를 지우세요)",
+                        4 => "LRACK 4 = 거부 — 장비에 없는 CEID(IronStudio 저장 · IronGEM 재시작 확인)",
+                        5 => "LRACK 5 = 거부 — 정의되지 않은 RPTID",
+                        _ => $"LRACK {ack}",
+                    };
+                }
+                case (2, 38):
+                {
+                    var ack = m.SecsItem?.FirstValueOrDefault<byte>(255);
+                    return ack switch
+                    {
+                        0 => "ERACK 0 = 수락",
+                        1 => "ERACK 1 = 거부 — 장비에 없는 CEID",
+                        _ => $"ERACK {ack}",
+                    };
+                }
+                case (5, 1):
+                    return ExplainAlarm(m.SecsItem);
+                case (5, 4):
+                {
+                    var ack = m.SecsItem?.FirstValueOrDefault<byte>(255);
+                    return ack == 0 ? "ACKC5 0 = 수락" : $"ACKC5 {ack} = 거부(장비에 없는 ALID 등)";
+                }
+                case (6, 11):
+                    return ExplainEvent(m.SecsItem);
                 case (9, 1):
                     return "S9F1 = Device ID가 서로 다릅니다. 호스트와 장비의 Device ID를 맞추세요";
                 case (9, 3):
@@ -247,6 +393,66 @@ internal static class Messages
     }
 
     private const string Indent = "             ";
+
+    /// <summary>S6F11: &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;</summary>
+    private static string? ExplainEvent(Item? item)
+    {
+        if (item is null || item.Format != SecsFormat.List || item.Count < 3)
+        {
+            return null;
+        }
+        var ceidText = ValueText(item[1]);
+        long.TryParse(ceidText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ceid);
+        var name = CeidNames.TryGetValue(ceid, out var n) ? $" {n}" : string.Empty;
+        var reports = item[2];
+        var sb = new StringBuilder();
+        sb.Append($"이벤트 CEID {ceidText}{name} · 리포트 {reports.Count}개");
+        if (reports.Count == 0)
+        {
+            sb.Append(" (이 이벤트에 링크된 리포트가 없음 — S2F35)");
+        }
+        for (var i = 0; i < reports.Count; i++)
+        {
+            var report = reports[i];
+            if (report.Format != SecsFormat.List || report.Count < 2)
+            {
+                continue;
+            }
+            var rptidText = ValueText(report[0]);
+            int.TryParse(rptidText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rptid);
+            DefinedReports.TryGetValue(rptid, out var vids);
+            sb.Append($"\n{Indent}리포트 {rptidText}");
+            var values = report[1];
+            for (var j = 0; j < values.Count; j++)
+            {
+                var vid = vids is not null && j < vids.Length ? vids[j].ToString(CultureInfo.InvariantCulture) : $"#{j + 1}";
+                var label = SvNames.TryGetValue(vid, out var sv) ? $"{vid} {sv}" : KnownVidNames.TryGetValue(vid, out var kn) ? $"{vid} {kn}" : vid;
+                var v = values[j];
+                var text = IsEmpty(v) ? $"(값 없음 <{v.Format} [0]>)" : ValueText(v);
+                if (vid == "1003")
+                {
+                    text += text == "1" ? " (Processing)" : text == "0" ? " (Idle)" : string.Empty;
+                }
+                sb.Append($"\n{Indent}  {label} = {text}");
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>S5F1: &lt;L ALCD ALID ALTX&gt;. ALCD 비트 8 = 발생(1) · 해제(0), 나머지 7비트 = 분류.</summary>
+    private static string? ExplainAlarm(Item? item)
+    {
+        if (item is null || item.Format != SecsFormat.List || item.Count < 3)
+        {
+            return null;
+        }
+        var alcd = item[0].FirstValueOrDefault<byte>(0);
+        var set = (alcd & 0x80) != 0;
+        var category = alcd & 0x7F;
+        var categoryText = category < AlarmCategories.Length ? AlarmCategories[category] : "장비 고유";
+        return $"알람 {(set ? "발생" : "해제")} · ALID {ValueText(item[1])} · {ValueText(item[2])}" +
+               $"\n{Indent}ALCD 0x{alcd:X2} = 비트 8 {(set ? "1(발생)" : "0(해제)")} + 분류 {category}({categoryText})";
+    }
 
     /// <summary>S1F4 · S2F14: 요청한 ID 순서대로 값이 옵니다. 빈 값 &lt;L [0]&gt;은 장비가 모르는 ID.</summary>
     private static string? ExplainValues(Item? item, IReadOnlyList<string> requested, ConcurrentDictionary<string, string> names, string kind)

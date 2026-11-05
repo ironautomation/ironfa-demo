@@ -39,6 +39,20 @@ public sealed class MainForm : Form
     private readonly Button _btnS2F15 = ScenarioButton("S2F15  ECV 변경");
     private readonly Label _lblIdFormat = new() { AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(6, 9, 0, 0) };
 
+    // EP04 · 이벤트 · 리포트 · 알람
+    private readonly Button _btnReportClear = ScenarioButton("리포트 전부 지우기");
+    private readonly Button _btnS2F33 = ScenarioButton("S2F33  리포트 정의");
+    private readonly Button _btnS2F35 = ScenarioButton("S2F35  이벤트 링크");
+    private readonly TextBox _txtCeids = new() { Width = 110, Text = "3001 3002", PlaceholderText = "비우면 전부" };
+    private readonly Button _btnS2F37On = ScenarioButton("S2F37  이벤트 켜기");
+    private readonly Button _btnS2F37Off = ScenarioButton("S2F37  끄기");
+    private readonly TextBox _txtAlid = new() { Width = 70, Text = "5001" };
+    private readonly Button _btnS5F3On = ScenarioButton("S5F3  알람 켜기");
+    private readonly Button _btnS5F3Off = ScenarioButton("S5F3  끄기");
+    private readonly Label _lblEp04 = new() { AutoSize = true, ForeColor = Color.FromArgb(120, 60, 160), Padding = new Padding(6, 6, 0, 0) };
+
+    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
+
     private readonly RichTextBox _log = new()
     {
         Dock = DockStyle.Fill,
@@ -61,7 +75,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "DemoHost — IronFA 입문 실습 호스트 (ep03)";
+        Text = "DemoHost — IronFA 입문 실습 호스트 (ep04)";
         Font = new Font("Malgun Gothic", 10F);
         ClientSize = new Size(1180, 820);
         StartPosition = FormStartPosition.CenterScreen;
@@ -80,6 +94,14 @@ public sealed class MainForm : Form
         _btnS2F29.Click += async (_, _) => await SendAsync(() => Messages.S2F29(Messages.ParseIds(_txtEcids.Text)));
         _btnS2F13.Click += async (_, _) => await SendAsync(() => Messages.S2F13(Messages.ParseIds(_txtEcids.Text)));
         _btnS2F15.Click += async (_, _) => await SendEcvChangeAsync();
+        _btnReportClear.Click += async (_, _) => await ClearReportsAsync();
+        _btnS2F33.Click += async (_, _) => await SendAsync(Messages.S2F33Define);
+        _btnS2F35.Click += async (_, _) => await SendAsync(Messages.S2F35Link);
+        _btnS2F37On.Click += async (_, _) => await SendCeidEnableAsync(true);
+        _btnS2F37Off.Click += async (_, _) => await SendCeidEnableAsync(false);
+        _btnS5F3On.Click += async (_, _) => await SendAsync(() => Messages.S5F3(true, _txtAlid.Text));
+        _btnS5F3Off.Click += async (_, _) => await SendAsync(() => Messages.S5F3(false, _txtAlid.Text));
+        _lblEp04.Text = Messages.Ep04Summary;
         _txtEcids.TextChanged += (_, _) => SyncEcvFormat();
         _cmbEcvFormat.Items.AddRange(Messages.ValueFormats);
         _cmbEcvFormat.SelectedItem = "F4";
@@ -100,10 +122,10 @@ public sealed class MainForm : Form
     // ---- 레이아웃 -----------------------------------------------------------
     private void BuildLayout()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(8) };
+        // EP04부터 회차별 버튼을 탭으로 나눕니다(창을 화면 절반 폭으로 두어도 로그가 넓게 보이도록).
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(8) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -112,14 +134,14 @@ public sealed class MainForm : Form
         conn.Controls.AddRange(new Control[]
         {
             Caption("IP"), _txtIp, Caption("Port"), _numPort, Caption("Device ID"), _numDeviceId,
-            Caption("Mode"), _rbActive, _rbPassive, _btnConnect, _btnDisconnect, _lblHsms,
+            Caption("Mode"), _rbActive, _rbPassive, _btnConnect, _btnDisconnect, _lblHsms, _lblComm,
         });
         root.Controls.Add(Group("연결 (HSMS)", conn), 0, 0);
 
         // 2) 시나리오(EP02)
         var scen = Flow();
-        scen.Controls.AddRange(new Control[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _chkAutoReply, _lblComm });
-        root.Controls.Add(Group("EP02 · 통신 확립과 온라인", scen), 0, 1);
+        scen.Controls.AddRange(new Control[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17 });
+        _tabs.TabPages.Add(Page("EP02 · 통신 확립 · 온라인", scen));
 
         // 2-1) 시나리오(EP03)
         var sv = Flow();
@@ -129,17 +151,34 @@ public sealed class MainForm : Form
             Caption("   ECID"), _txtEcids, _btnS2F29, _btnS2F13,
             Caption("값"), _txtEcv, _cmbEcvFormat, _btnS2F15, _lblIdFormat,
         });
-        root.Controls.Add(Group("EP03 · SV · ECV   (ID 여러 개는 띄어 쓰기 · 비우면 전부)", sv), 0, 2);
+        // 창을 화면 절반 폭으로 두어도 S2F15 버튼이 잘리지 않게 SV 줄과 ECV 줄을 나눕니다(EP03 녹화 v05).
+        sv.SetFlowBreak(_btnS1F3, true);
+        _tabs.TabPages.Add(Page("EP03 · SV · ECV", sv));
+
+        // 2-2) 시나리오(EP04): 호스트가 리포트를 정의하고(S2F33) 이벤트에 걸고(S2F35) 켭니다(S2F37).
+        var ev = Flow();
+        ev.Controls.AddRange(new Control[]
+        {
+            _btnReportClear, _btnS2F33, _btnS2F35,
+            Caption("CEID"), _txtCeids, _btnS2F37On, _btnS2F37Off,
+            Caption("   ALID"), _txtAlid, _btnS5F3On, _btnS5F3Off,
+            _lblEp04,
+        });
+        ev.SetFlowBreak(_btnS2F35, true);
+        ev.SetFlowBreak(_btnS5F3Off, true);
+        _tabs.TabPages.Add(Page("EP04 · 이벤트 · 알람", ev));
+        _tabs.SelectedIndex = _tabs.TabPages.Count - 1;
+        root.Controls.Add(_tabs, 0, 1);
 
         // 3) 로그
         var logBox = new GroupBox { Text = "메시지 로그   (H→E 호스트가 보냄 · E→H 장비가 보냄 · W 응답 필요)", Dock = DockStyle.Fill, Padding = new Padding(6) };
         logBox.Controls.Add(_log);
-        root.Controls.Add(logBox, 0, 3);
+        root.Controls.Add(logBox, 0, 2);
 
         // 4) 로그 도구
         var tools = Flow();
-        tools.Controls.AddRange(new Control[] { _btnClear, _btnSave, _chkSml, _chkDetail });
-        root.Controls.Add(tools, 0, 4);
+        tools.Controls.AddRange(new Control[] { _btnClear, _btnSave, _chkSml, _chkDetail, _chkAutoReply });
+        root.Controls.Add(tools, 0, 3);
 
         Controls.Add(root);
     }
@@ -157,6 +196,14 @@ public sealed class MainForm : Form
         var g = new GroupBox { Text = text, Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(6) };
         g.Controls.Add(content);
         return g;
+    }
+
+    private static TabPage Page(string text, Control content)
+    {
+        var page = new TabPage(text) { Padding = new Padding(4), UseVisualStyleBackColor = true };
+        content.Dock = DockStyle.Fill;
+        page.Controls.Add(content);
+        return page;
     }
 
     private static Label Caption(string text) => new() { Text = text, AutoSize = true, Padding = new Padding(6, 7, 0, 0) };
@@ -310,6 +357,25 @@ public sealed class MainForm : Form
         await SendAsync(() => Messages.S2F15(ids[0], value));
     }
 
+    /// <summary>리포트 전부 지우기: 이벤트를 모두 끄고(S2F37 FALSE · 빈 목록) 리포트를 모두 지웁니다(S2F33 빈 목록).
+    /// 호스트는 보통 이렇게 깨끗이 지운 뒤 자기 리포트를 정의합니다 — 이미 있는 RPTID를 다시 정의하면 DRACK 3.</summary>
+    private async Task ClearReportsAsync()
+    {
+        await SendAsync(() => Messages.S2F37(false, Array.Empty<string>()));
+        await SendAsync(Messages.S2F33DeleteAll);
+    }
+
+    private async Task SendCeidEnableAsync(bool enable)
+    {
+        IReadOnlyList<string> ceids = Messages.ParseIds(_txtCeids.Text);
+        if (ceids.Any(c => !uint.TryParse(c, out _)))
+        {
+            AppendLine("CEID 칸에는 숫자만 띄어 써 주세요(예: 3001 3002).", Color.DarkOrange);
+            return;
+        }
+        await SendAsync(() => Messages.S2F37(enable, ceids));
+    }
+
     /// <summary>ECID 칸이 하나이고 장비가 알려 준 형식이 있으면 값 형식을 그에 맞춥니다.</summary>
     private void SyncEcvFormat()
     {
@@ -384,7 +450,11 @@ public sealed class MainForm : Form
 
     private void SetScenarioEnabled(bool on)
     {
-        foreach (var b in new[] { _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _btnS1F11, _btnS1F3, _btnS2F29, _btnS2F13, _btnS2F15 })
+        foreach (var b in new[]
+        {
+            _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _btnS1F11, _btnS1F3, _btnS2F29, _btnS2F13, _btnS2F15,
+            _btnReportClear, _btnS2F33, _btnS2F35, _btnS2F37On, _btnS2F37Off, _btnS5F3On, _btnS5F3Off,
+        })
         {
             b.Enabled = on;
         }
