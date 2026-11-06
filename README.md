@@ -49,7 +49,7 @@ git이 없으면 **Code › Download ZIP**으로 받아 `C:\Demo`에 풀고, 폴
 
 ## IronTools v2 무료 Trial 신청
 
-**IronTools 90일 무료 트라이얼**로 IronFA를 직접 써 보실 수 있습니다 — **[▶ 무료 Trial 및 상담 신청하기](http://trial.ironautomation.com/trial/)**
+**IronTools 90일 무료 트라이얼**로 IronFA를 직접 써 보실 수 있습니다 — **[▶ 무료 Trial 및 상담 신청하기](http://ironautomation.com/trial/)**
 
 ---
 제작: (주)아이언오토메이션 · 질문은 Issues에 남겨 주세요.
