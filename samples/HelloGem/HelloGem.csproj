@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- EP05 앞부분: 빈 Windows Forms 앱(.NET Framework 4.8)에 IronGEM.Connector를 붙여 SV 하나를 올리는 최소 예제 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>10.0</LangVersion>
+    <RootNamespace>HelloGem</RootNamespace>
+    <AssemblyName>HelloGem</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- grpc_csharp_ext.x86.dll · x64.dll은 패키지가 출력 폴더에 자동으로 복사합니다. -->
+    <PackageReference Include="IronAutomation.IronGEM.Connector" Version="0.4.0" />
+  </ItemGroup>
+
+</Project>

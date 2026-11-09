@@ -6,6 +6,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoHost", "src\DemoHost\De
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoEtcher", "src\DemoEtcher\DemoEtcher.csproj", "{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HelloGem", "samples\HelloGem\HelloGem.csproj", "{5E2A9C47-1B8D-4F3A-9D6E-2C7B0A4E8F31}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +22,10 @@ Global
 		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7C4D1E92-5B3A-4F6E-8A21-9E0B3C6D5F14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E2A9C47-1B8D-4F3A-9D6E-2C7B0A4E8F31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E2A9C47-1B8D-4F3A-9D6E-2C7B0A4E8F31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E2A9C47-1B8D-4F3A-9D6E-2C7B0A4E8F31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E2A9C47-1B8D-4F3A-9D6E-2C7B0A4E8F31}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

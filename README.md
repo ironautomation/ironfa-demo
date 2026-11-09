@@ -7,6 +7,7 @@
 |---|---|
 | `src/DemoEtcher` | 가상 매엽식 식각 장비 — 로드포트 · 챔버 · 공정 시퀀스 · 알람 (C#, IronGEM.Connector) |
 | `src/DemoHost` | 실습용 호스트(MES 역할) — 메시지 로그 + 시나리오 버튼 (C#, [secs4net](https://github.com/mkjeff/secs4net)) |
+| `samples/HelloGem` | 빈 Windows Forms 앱에 Connector를 붙이는 최소 예제 (EP05) |
 | `config` | 회차별 IronFA 설정 예시 (SV · ECV · CEID · ALID · RCMD) |
 | `docs` | 회차별 시나리오와 SECS 로그 예시 |
 
@@ -14,8 +15,8 @@
 
 - Windows 10/11 64비트
 - **IronTools v2** (IronFA 포함 설치) — [무료 Trial 신청](#irontools-v2-무료-trial-신청)
-- DemoHost — EP02부터. Releases의 최신 `DemoHost-epNN-win-x64.zip`(EP04부터 `ep04`)(설치 불필요) 또는 .NET 8 SDK로 직접 빌드 (`src/DemoHost/README.md`)
-- Visual Studio 2022 — EP05(장비 프로그램 코드)부터 필요
+- DemoHost — EP02부터. Releases의 최신 `DemoHost-epNN-win-x64.zip`(EP05부터 `ep05`)(설치 불필요) 또는 .NET 8 SDK로 직접 빌드 (`src/DemoHost/README.md`)
+- Visual Studio 2022(.NET 데스크톱 개발) — EP05(장비 프로그램 코드)부터 필요. NuGet 패키지 `IronAutomation.IronGEM.Connector`(nuget.org)
 
 ## 받는 방법
 
@@ -35,7 +36,7 @@ git이 없으면 **Code › Download ZIP**으로 받아 `C:\Demo`에 풀고, 폴
 | EP02 | 호스트와 첫 연결 — 통신 확립과 온라인 | `ep02` |
 | EP03 | 상태 변수와 장비 상수 — SV · ECV | `ep03` |
 | EP04 | 이벤트 · 리포트 · 알람 — 장비가 먼저 말한다 | `ep04` |
-| EP05 | 장비 프로그램 속으로 — IronGEM.Connector (C#) | 예정 |
+| EP05 | 장비 프로그램 속으로 — IronGEM.Connector (C#) | `ep05` |
 | EP06 | 300mm ① 캐리어 — 로드포트에 FOUP이 올라오면 (E87) | 예정 |
 | EP07 | 300mm ② 잡 — Process Job과 Control Job (E40 · E94) | 예정 |
 | EP08 | PLC 값을 호스트로 — IronServer 연동 | 예정 |

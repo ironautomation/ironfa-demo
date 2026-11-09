@@ -22,6 +22,9 @@ namespace DemoEtcher
         public const byte Idle = 0;
         public const byte Processing = 1;
 
+        /// <summary>지금까지 끝낸 공정 수 → SV 1004 ProcessCount (EP05)</summary>
+        public uint ProcessCount { get; private set; }
+
         /// <summary>설정 온도 [degC] ← ECV 2001 TempSetpoint (호스트가 S2F15로 바꿈)</summary>
         public double Setpoint { get; set; } = 60.0;
 
@@ -57,6 +60,7 @@ namespace DemoEtcher
         public double EndProcess()
         {
             ProcessState = Idle;
+            ProcessCount++;
             return ProcessElapsed;
         }
 

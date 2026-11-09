@@ -27,12 +27,13 @@ namespace DemoEtcher
         private readonly Label _lblSetpoint = Value();
         private readonly Label _lblPressure = Value();
         private readonly Label _lblProcess = Value();
+        private readonly Label _lblCount = Value();
         private readonly TrendView _trend = new TrendView { Dock = DockStyle.Fill, MinimumSize = new Size(300, 150) };
 
         // 운전(EP04): 공정 실행 · 과온 시뮬레이션 · 알람 표시
         public const double ProcessSeconds = 10.0;
         private readonly Button _btnProcess = new Button { Text = "공정 실행 (10초)", AutoSize = true, Height = 32, Padding = new Padding(6, 0, 6, 0) };
-        private readonly CheckBox _chkFault = new CheckBox { Text = "과온 시뮬레이션", Appearance = Appearance.Button, AutoSize = true, Height = 32, Padding = new Padding(6, 0, 6, 0), TextAlign = ContentAlignment.MiddleCenter };
+        private readonly CheckBox _chkFault = new CheckBox { Text = "과온 시뮬레이션", Appearance = Appearance.Button, AutoSize = false, Size = new Size(150, 32), TextAlign = ContentAlignment.MiddleCenter }; // AutoSize면 글자가 잘림(EP04 v01)
         private readonly Label _lblAlarm = StateLabel();
         private bool _ending;
 
@@ -41,7 +42,7 @@ namespace DemoEtcher
 
         public MainForm()
         {
-            Text = "DemoEtcher — IronFA 입문 실습 장비 (ep04)";
+            Text = "DemoEtcher — IronFA 입문 실습 장비 (ep05)";
             Font = new Font("Malgun Gothic", 10F);
             ClientSize = new Size(640, 520);
             StartPosition = FormStartPosition.Manual;
@@ -54,6 +55,9 @@ namespace DemoEtcher
             _gem.SetpointSynced += (value, result) => Log(result == IronGEMProxy.SUCCESS
                 ? $"IronGEM 연결됨 · ECV 2001 TempSetpoint를 장비 설정 온도 {value} ℃로 맞춤"
                 : $"ECV 2001 맞추기 실패 (코드 {result}) — IronStudio에 ECV 2001이 있는지 확인하세요");
+            _gem.RemoteCommandReceived += OnRemoteCommand;                 // EP05: S2F41 → 판단 → HCACK
+            _gem.CommandAccepted += async (rcmd, _) => await RunCommandAsync(rcmd); // S2F42를 보낸 뒤 실제 동작
+            _gem.Logged += Log;
             _btnProcess.Click += async (_, __) => await StartProcessAsync();
             _chkFault.CheckedChanged += (_, __) =>
             {
@@ -123,6 +127,41 @@ namespace DemoEtcher
             }
         }
 
+        // ---- 원격 명령 S2F41 (EP05) ------------------------------------------------
+        // 여기서는 '지금 할 수 있는가'만 판단해 HCACK을 돌려줍니다. 화면 스레드에서 불리므로 오래 걸리는 일은 하지 않습니다.
+        private int OnRemoteCommand(string rcmd, IReadOnlyList<KeyValuePair<string, string>> parameters)
+        {
+            Log($"원격 명령 S2F41 받음: RCMD '{rcmd}' · 파라미터 {parameters.Count}개");
+
+            if (rcmd != "START")
+            {
+                return EquipmentGem.HCACK_InvalidCommand;          // 1 = 이 장비에 없는 명령
+            }
+            if (_gem.ControlState != ControlState.REMOTE)
+            {
+                Log("  → 제어 상태가 REMOTE가 아님 — 호스트 명령은 REMOTE에서만 받습니다");
+                return EquipmentGem.HCACK_CannotNow;               // 2 = 지금은 할 수 없음
+            }
+            if (_chamber.ProcessState == Chamber.Processing)
+            {
+                Log("  → 이미 공정 중");
+                return EquipmentGem.HCACK_CannotNow;
+            }
+            if (parameters.Count > 0)
+            {
+                return EquipmentGem.HCACK_InvalidParameter;        // 3 = START는 파라미터를 받지 않음
+            }
+            return EquipmentGem.HCACK_WillComplete;                // 4 = 받았음 · 끝나면 CEID 3002로 알림
+        }
+
+        private async Task RunCommandAsync(string rcmd)
+        {
+            if (rcmd == "START")
+            {
+                await StartProcessAsync();
+            }
+        }
+
         // ---- 알람 (EP04) -----------------------------------------------------------
         private async Task ReportOverTempAsync(bool set)
         {
@@ -165,7 +204,7 @@ namespace DemoEtcher
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
 
             var gem = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
             gem.Controls.AddRange(new Control[] { _lblLink, _lblComm, _lblControl });
@@ -182,6 +221,8 @@ namespace DemoEtcher
             values.Controls.Add(_lblPressure, 1, 3);
             values.Controls.Add(Caption("공정 상태 (1003)"), 0, 4);
             values.Controls.Add(_lblProcess, 1, 4);
+            values.Controls.Add(Caption("공정 수 (1004)"), 0, 5);
+            values.Controls.Add(_lblCount, 1, 5);
 
             var chamber = new Panel { Dock = DockStyle.Fill };
             chamber.Controls.Add(_trend);
@@ -204,6 +245,7 @@ namespace DemoEtcher
             _lblProcess.Text = _chamber.ProcessState == Chamber.Processing
                 ? $"1  Processing  {_chamber.ProcessElapsed:0}/{ProcessSeconds:0} s"
                 : "0  Idle";
+            _lblCount.Text = _chamber.ProcessCount.ToString(CultureInfo.InvariantCulture);
             _btnProcess.Enabled = _chamber.ProcessState == Chamber.Idle;
             ShowAlarm();
             _trend.Add(_chamber.Temperature, _chamber.Setpoint);

@@ -49,6 +49,12 @@ public sealed class MainForm : Form
     private readonly TextBox _txtAlid = new() { Width = 70, Text = "5001" };
     private readonly Button _btnS5F3On = ScenarioButton("S5F3  알람 켜기");
     private readonly Button _btnS5F3Off = ScenarioButton("S5F3  끄기");
+    // EP05 · 원격 명령
+    private readonly TextBox _txtRcmd = new() { Width = 110, Text = "START" };
+    private readonly TextBox _txtCp = new() { Width = 160, PlaceholderText = "CPNAME=CPVAL (비우면 없음)" };
+    private readonly Button _btnS2F41 = ScenarioButton("S2F41  원격 명령");
+    private readonly Label _lblEp05 = new() { AutoSize = true, ForeColor = Color.FromArgb(120, 60, 160), Padding = new Padding(6, 6, 0, 0), Text = "HCACK 0 수행함 · 1 없는 명령 · 2 지금은 할 수 없음 · 3 파라미터 오류 · 4 받았음(끝나면 이벤트)" };
+
     private readonly Label _lblEp04 = new() { AutoSize = true, ForeColor = Color.FromArgb(120, 60, 160), Padding = new Padding(6, 6, 0, 0) };
 
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
@@ -75,7 +81,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "DemoHost — IronFA 입문 실습 호스트 (ep04)";
+        Text = "DemoHost — IronFA 입문 실습 호스트 (ep05)";
         Font = new Font("Malgun Gothic", 10F);
         ClientSize = new Size(1180, 820);
         StartPosition = FormStartPosition.CenterScreen;
@@ -102,6 +108,7 @@ public sealed class MainForm : Form
         _btnS5F3On.Click += async (_, _) => await SendAsync(() => Messages.S5F3(true, _txtAlid.Text));
         _btnS5F3Off.Click += async (_, _) => await SendAsync(() => Messages.S5F3(false, _txtAlid.Text));
         _lblEp04.Text = Messages.Ep04Summary;
+        _btnS2F41.Click += async (_, _) => await SendAsync(() => Messages.S2F41(_txtRcmd.Text, _txtCp.Text));
         _txtEcids.TextChanged += (_, _) => SyncEcvFormat();
         _cmbEcvFormat.Items.AddRange(Messages.ValueFormats);
         _cmbEcvFormat.SelectedItem = "F4";
@@ -167,6 +174,12 @@ public sealed class MainForm : Form
         ev.SetFlowBreak(_btnS2F35, true);
         ev.SetFlowBreak(_btnS5F3Off, true);
         _tabs.TabPages.Add(Page("EP04 · 이벤트 · 알람", ev));
+
+        // 2-3) 시나리오(EP05): 호스트가 장비에 명령합니다(S2F41). 판단과 응답(S2F42 HCACK)은 장비 프로그램이 합니다.
+        var rc = Flow();
+        rc.Controls.AddRange(new Control[] { Caption("RCMD"), _txtRcmd, Caption("파라미터"), _txtCp, _btnS2F41, _lblEp05 });
+        rc.SetFlowBreak(_btnS2F41, true);
+        _tabs.TabPages.Add(Page("EP05 · 원격 명령", rc));
         _tabs.SelectedIndex = _tabs.TabPages.Count - 1;
         root.Controls.Add(_tabs, 0, 1);
 
@@ -454,6 +467,7 @@ public sealed class MainForm : Form
         {
             _btnS1F13, _btnS1F1, _btnS1F15, _btnS1F17, _btnS1F11, _btnS1F3, _btnS2F29, _btnS2F13, _btnS2F15,
             _btnReportClear, _btnS2F33, _btnS2F35, _btnS2F37On, _btnS2F37Off, _btnS5F3On, _btnS5F3Off,
+            _btnS2F41,
         })
         {
             b.Enabled = on;

@@ -40,6 +40,8 @@ internal static class Messages
         [(2, 34)] = "Define Report Acknowledge",
         [(2, 35)] = "Link Event Report",
         [(2, 36)] = "Link Event Report Acknowledge",
+        [(2, 41)] = "Host Command Send",
+        [(2, 42)] = "Host Command Acknowledge",
         [(2, 37)] = "Enable/Disable Event Report",
         [(2, 38)] = "Enable/Disable Event Report Acknowledge",
         [(5, 1)] = "Alarm Report Send",
@@ -170,6 +172,22 @@ internal static class Messages
         Name = NameOf(2, 37),
         SecsItem = L(Item.Boolean(enable), L(ceids.Select(c => U4(uint.Parse(c, CultureInfo.InvariantCulture))).ToArray())),
     };
+
+    // ---- 호스트 → 장비 (EP05) ----------------------------------------------
+
+    /// <summary>
+    /// S2F41 W — 원격 명령: &lt;L RCMD &lt;L &lt;L CPNAME CPVAL&gt;…&gt;&gt;. 파라미터 칸은 "NAME=VALUE NAME=VALUE".
+    /// IronGEM은 형식만 검사하고 장비 프로그램에 넘깁니다 — 응답(S2F42)은 장비 프로그램이 만듭니다.
+    /// </summary>
+    public static SecsMessage S2F41(string rcmd, string parameters)
+    {
+        var cps = (parameters ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Split('=', 2))
+            .Select(kv => L(A(kv[0]), A(kv.Length > 1 ? kv[1] : string.Empty)))
+            .ToArray();
+        return new(2, 41) { Name = NameOf(2, 41), SecsItem = L(A((rcmd ?? string.Empty).Trim()), L(cps)) };
+    }
 
     /// <summary>S5F3 W — 알람 켜기 · 끄기: &lt;L ALED ALID&gt;. ALED 128(비트 8) = 켜기, 0 = 끄기.</summary>
     public static SecsMessage S5F3(bool enable, string alid) => new(5, 3)
@@ -373,6 +391,19 @@ internal static class Messages
                 }
                 case (6, 11):
                     return ExplainEvent(m.SecsItem);
+                case (2, 42):
+                {
+                    var hcack = m.SecsItem?[0].FirstValueOrDefault<byte>(255);
+                    return hcack switch
+                    {
+                        0 => "HCACK 0 = 수행했음",
+                        1 => "HCACK 1 = 거부 — 장비에 없는 명령",
+                        2 => "HCACK 2 = 거부 — 지금은 할 수 없음(공정 중 · REMOTE 아님 · 장비 프로그램이 응답하지 않음 등)",
+                        3 => "HCACK 3 = 거부 — 파라미터 오류",
+                        4 => "HCACK 4 = 받았음 — 끝나면 이벤트로 알림",
+                        _ => $"HCACK {hcack} = 거부(장비 고유 코드)",
+                    };
+                }
                 case (9, 1):
                     return "S9F1 = Device ID가 서로 다릅니다. 호스트와 장비의 Device ID를 맞추세요";
                 case (9, 3):
